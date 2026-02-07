@@ -1,32 +1,22 @@
-const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+import express from 'express';
+import cors from 'cors';
 
 const app = express();
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+// هنا تحط CORS قبل أي route
+app.use(cors({
+  origin: ['http://localhost:8000'], // الدومين اللي هيبعت requests
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true
+}));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json()); // علشان يقدر يقرأ JSON من body
 
-// هنا تحط كل الـ routes (signup, signin, admin) بدون أي CORS middleware
+// مثال route
+app.post('/api/signup', (req, res) => {
+  const { name, email, password } = req.body;
+  // عملية التسجيل هنا
+  res.json({ success: true, user: { name, email }, token: 'FAKE_TOKEN' });
+});
 
-module.exports = async (req, res) => {
-  // ✅ السماح لأي دومين
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
-  res.setHeader('Access-Control-Max-Age', '86400');
-
-  // ✅ الرد مباشرة على preflight request
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end(); // 204 أفضل من 200 للOPTIONS
-  }
-
-  // ✅ إزالة /api prefix
-  req.url = req.url.replace(/^\/api/, '') || '/';
-
-  // ✅ نفذ Express app
-  app(req, res);
-};
+app.listen(3000, () => console.log('Server running on port 3000'));
