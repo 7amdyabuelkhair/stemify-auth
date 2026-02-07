@@ -38,28 +38,49 @@ function createToken(userId) {
 
 // Main handler
 module.exports = async (req, res) => {
-  // Set CORS headers FIRST - before anything else
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key, Accept, Origin, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400');
-  
-  // Handle preflight OPTIONS request - return immediately
+  // CRITICAL: Set CORS headers FIRST - before ANY other code
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-key, Accept, Origin, X-Requested-With',
+    'Access-Control-Max-Age': '86400'
+  };
+
+  // Apply CORS headers to response
+  Object.keys(corsHeaders).forEach(key => {
+    res.setHeader(key, corsHeaders[key]);
+  });
+
+  // Handle preflight OPTIONS request - MUST return immediately with 200
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
+    res.writeHead(200, corsHeaders);
+    res.end();
     return;
   }
 
-  const path = req.url.split('?')[0];
+  // Get path - handle both /api/... and direct paths
+  let path = req.url || '/';
+  if (path.includes('?')) {
+    path = path.split('?')[0];
+  }
+  
+  // Normalize path
+  if (path.startsWith('/api/')) {
+    path = path.substring(4); // Remove /api
+  }
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+
   const method = req.method;
 
-  // Parse JSON body
+  // Parse JSON body for POST requests
   let body = {};
   if (method === 'POST') {
     try {
-      if (typeof req.body === 'string') {
+      if (typeof req.body === 'string' && req.body) {
         body = JSON.parse(req.body);
-      } else if (req.body) {
+      } else if (req.body && typeof req.body === 'object') {
         body = req.body;
       }
     } catch (e) {
@@ -71,7 +92,7 @@ module.exports = async (req, res) => {
   }
 
   // Sign Up
-  if (method === 'POST' && path === '/api/signup') {
+  if (method === 'POST' && path === '/signup') {
     try {
       const { name, number, parentName, parentNumber, email, password, school } = body;
 
@@ -161,7 +182,7 @@ module.exports = async (req, res) => {
   }
 
   // Sign In
-  if (method === 'POST' && path === '/api/signin') {
+  if (method === 'POST' && path === '/signin') {
     try {
       const { email, password } = body;
 
@@ -219,8 +240,9 @@ module.exports = async (req, res) => {
   }
 
   // Admin: Get all students
-  if (method === 'GET' && path === '/api/admin/students') {
-    const adminKey = req.query?.adminKey || req.headers['x-admin-key'];
+  if (method === 'GET' && path === '/admin/students') {
+    const urlParams = new URLSearchParams(req.url.split('?')[1] || '');
+    const adminKey = urlParams.get('adminKey') || req.headers['x-admin-key'];
     const validAdminKey = process.env.ADMIN_KEY || 'admin-stemify-2024';
 
     if (adminKey !== validAdminKey) {
@@ -261,9 +283,10 @@ module.exports = async (req, res) => {
   }
 
   // Health check
-  if (method === 'GET' && path === '/api') {
+  if (method === 'GET' && (path === '/' || path === '')) {
     return res.json({
       message: 'STEMify API is running',
+      cors: 'enabled',
       endpoints: {
         signup: 'POST /api/signup',
         signin: 'POST /api/signin',
@@ -272,5 +295,5 @@ module.exports = async (req, res) => {
     });
   }
 
-  return res.status(404).json({ message: 'Not found' });
+  return res.status(404).json({ message: 'Not found', path: path });
 };
