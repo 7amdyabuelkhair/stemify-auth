@@ -258,12 +258,23 @@ app.get('/', (req, res) => {
   });
 });
 
-// Export for Vercel serverless - wrap Express app
-module.exports = (req, res) => {
-  // Remove /api prefix for Express routing
-  const originalUrl = req.url;
+// Export for Vercel serverless - wrap Express app with CORS handling
+module.exports = async (req, res) => {
+  // ✅ إعداد CORS لأي دومين
+  res.setHeader('Access-Control-Allow-Origin', '*'); 
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  // ✅ التعامل مع preflight request (OPTIONS)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // إزالة /api prefix
   req.url = req.url.replace(/^\/api/, '') || '/';
-  
-  // Handle the request with Express
+
+  // تنفيذ Express app
   app(req, res);
 };
+
