@@ -1,4 +1,3 @@
-const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -37,34 +36,37 @@ function createToken(userId) {
   );
 }
 
-// Set CORS headers helper
-function setCORSHeaders(res) {
+// Main handler
+module.exports = async (req, res) => {
+  // Set CORS headers FIRST - before anything else
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key, Accept, Origin, X-Requested-With');
   res.setHeader('Access-Control-Max-Age', '86400');
-}
-
-// Main handler
-module.exports = async (req, res) => {
-  // Set CORS headers FIRST
-  setCORSHeaders(res);
   
-  // Handle preflight OPTIONS request
+  // Handle preflight OPTIONS request - return immediately
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
   const path = req.url.split('?')[0];
   const method = req.method;
 
-  // Parse JSON body if present
+  // Parse JSON body
   let body = {};
-  if (req.method === 'POST' && req.headers['content-type']?.includes('application/json')) {
+  if (method === 'POST') {
     try {
-      body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      if (typeof req.body === 'string') {
+        body = JSON.parse(req.body);
+      } else if (req.body) {
+        body = req.body;
+      }
     } catch (e) {
-      return res.status(400).json({ success: false, message: 'Invalid JSON' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid JSON format' 
+      });
     }
   }
 
@@ -131,6 +133,7 @@ module.exports = async (req, res) => {
         .single();
 
       if (error) {
+        console.error('Supabase error:', error);
         throw error;
       }
 
