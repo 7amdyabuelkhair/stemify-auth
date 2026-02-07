@@ -11,19 +11,6 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// CORS - Allow all origins (أي دومين مسموح)
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
-  res.header('Access-Control-Max-Age', '86400');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).json({});
-  }
-  next();
-});
-
 // Parse JSON bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -277,4 +264,6 @@ module.exports = async (req, res) => {
   // تنفيذ Express app
   app(req, res);
 };
+
+
 
