@@ -1,11 +1,32 @@
+const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+// Initialize Express app
+const app = express();
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// CORS - Allow all origins (أي دومين مسموح)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).json({});
+  }
+  next();
+});
+
+// Parse JSON bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Generate random alphanumeric code (6 characters)
 function generateRandomCode(length = 6) {
@@ -36,223 +57,213 @@ function createToken(userId) {
   );
 }
 
-module.exports = async (req, res) => {
-  // Enable CORS for all origins (including file:// and localhost)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+// Sign Up
+app.post('/signup', async (req, res) => {
+  try {
+    const { name, number, parentName, parentNumber, email, password, school } = req.body;
 
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).json({});
-  }
-
-  const { method } = req;
-  // Handle both /api/signup and /signup paths
-  const path = req.url.split('?')[0].replace(/^\/api/, '');
-
-  // Sign Up
-  if (method === 'POST' && (path === '/signup' || path === '/api/signup')) {
-    try {
-      const { name, number, parentName, parentNumber, email, password, school } = req.body;
-
-      if (!name || !number || !parentName || !parentNumber || !email || !password || !school) {
-        return res.status(400).json({
-          success: false,
-          message: 'All fields are required'
-        });
-      }
-
-      // Check if user already exists
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', email.toLowerCase())
-        .single();
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already registered'
-        });
-      }
-
-      // Generate student ID
-      let studentId;
-      let isUnique = false;
-      while (!isUnique) {
-        studentId = generateStudentId();
-        const { data: existing } = await supabase
-          .from('users')
-          .select('student_id')
-          .eq('student_id', studentId)
-          .single();
-        if (!existing) {
-          isUnique = true;
-        }
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Insert user
-      const { data: user, error } = await supabase
-        .from('users')
-        .insert([
-          {
-            student_id: studentId,
-            name,
-            number,
-            parent_name: parentName,
-            parent_number: parentNumber,
-            email: email.toLowerCase(),
-            password: hashedPassword,
-            school
-          }
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const token = createToken(user.id);
-
-      return res.status(201).json({
-        success: true,
-        message: 'Account created successfully',
-        token,
-        user: {
-          id: user.id,
-          studentId: user.student_id,
-          name: user.name,
-          email: user.email,
-          school: user.school
-        }
-      });
-    } catch (error) {
-      console.error('Signup error:', error);
-      return res.status(500).json({
+    if (!name || !number || !parentName || !parentNumber || !email || !password || !school) {
+      return res.status(400).json({
         success: false,
-        message: error.message || 'Server error'
+        message: 'All fields are required'
       });
     }
-  }
 
-  // Sign In
-  if (method === 'POST' && (path === '/signin' || path === '/api/signin')) {
-    try {
-      const { email, password } = req.body;
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email.toLowerCase())
+      .single();
 
-      if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email and password are required'
-        });
-      }
-
-      // Get user with password
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email.toLowerCase())
-        .single();
-
-      if (error || !user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid email or password'
-        });
-      }
-
-      // Check password
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid email or password'
-        });
-      }
-
-      const token = createToken(user.id);
-
-      return res.json({
-        success: true,
-        message: 'Signed in successfully',
-        token,
-        user: {
-          id: user.id,
-          studentId: user.student_id,
-          name: user.name,
-          email: user.email,
-          school: user.school
-        }
-      });
-    } catch (error) {
-      console.error('Signin error:', error);
-      return res.status(500).json({
+    if (existingUser) {
+      return res.status(400).json({
         success: false,
-        message: error.message || 'Server error'
+        message: 'Email already registered'
       });
     }
+
+    // Generate student ID
+    let studentId;
+    let isUnique = false;
+    while (!isUnique) {
+      studentId = generateStudentId();
+      const { data: existing } = await supabase
+        .from('users')
+        .select('student_id')
+        .eq('student_id', studentId)
+        .single();
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Insert user
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert([
+        {
+          student_id: studentId,
+          name,
+          number,
+          parent_name: parentName,
+          parent_number: parentNumber,
+          email: email.toLowerCase(),
+          password: hashedPassword,
+          school
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    const token = createToken(user.id);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Account created successfully',
+      token,
+      user: {
+        id: user.id,
+        studentId: user.student_id,
+        name: user.name,
+        email: user.email,
+        school: user.school
+      }
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
   }
+});
 
-  // Admin: Get all students
-  if (method === 'GET' && (path === '/admin/students' || path === '/api/admin/students')) {
-    const adminKey = req.query.adminKey || req.headers['x-admin-key'];
-    const validAdminKey = process.env.ADMIN_KEY || 'admin-stemify-2024';
+// Sign In
+app.post('/signin', async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-    if (adminKey !== validAdminKey) {
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    // Get user with password
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .single();
+
+    if (error || !user) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized. Admin key required.'
+        message: 'Invalid email or password'
       });
     }
 
-    try {
-      const { data: students, error } = await supabase
-        .from('users')
-        .select('student_id, name, email, number, parent_name, parent_number, school, created_at')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      return res.json({
-        success: true,
-        count: students.length,
-        students: students.map(s => ({
-          studentId: s.student_id,
-          name: s.name,
-          email: s.email,
-          number: s.number,
-          parentName: s.parent_name,
-          parentNumber: s.parent_number,
-          school: s.school,
-          createdAt: s.created_at
-        }))
-      });
-    } catch (error) {
-      return res.status(500).json({
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
         success: false,
-        message: error.message || 'Server error'
+        message: 'Invalid email or password'
       });
     }
-  }
 
-  // Health check
-  if (method === 'GET' && (path === '/' || path === '/api')) {
+    const token = createToken(user.id);
+
     return res.json({
-      message: 'STEMify API is running',
-      endpoints: {
-        signup: 'POST /api/signup',
-        signin: 'POST /api/signin',
-        adminStudents: 'GET /api/admin/students?adminKey=YOUR_KEY'
+      success: true,
+      message: 'Signed in successfully',
+      token,
+      user: {
+        id: user.id,
+        studentId: user.student_id,
+        name: user.name,
+        email: user.email,
+        school: user.school
       }
+    });
+  } catch (error) {
+    console.error('Signin error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+});
+
+// Admin: Get all students
+app.get('/admin/students', async (req, res) => {
+  const adminKey = req.query.adminKey || req.headers['x-admin-key'];
+  const validAdminKey = process.env.ADMIN_KEY || 'admin-stemify-2024';
+
+  if (adminKey !== validAdminKey) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized. Admin key required.'
     });
   }
 
-  return res.status(404).json({ message: 'Not found' });
-};
+  try {
+    const { data: students, error } = await supabase
+      .from('users')
+      .select('student_id, name, email, number, parent_name, parent_number, school, created_at')
+      .order('created_at', { ascending: false });
 
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      count: students.length,
+      students: students.map(s => ({
+        studentId: s.student_id,
+        name: s.name,
+        email: s.email,
+        number: s.number,
+        parentName: s.parent_name,
+        parentNumber: s.parent_number,
+        school: s.school,
+        createdAt: s.created_at
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
+  }
+});
+
+// Health check
+app.get('/', (req, res) => {
+  return res.json({
+    message: 'STEMify API is running',
+    endpoints: {
+      signup: 'POST /api/signup',
+      signin: 'POST /api/signin',
+      adminStudents: 'GET /api/admin/students?adminKey=YOUR_KEY'
+    }
+  });
+});
+
+// Export for Vercel serverless - wrap Express app
+module.exports = (req, res) => {
+  // Remove /api prefix for Express routing
+  const originalUrl = req.url;
+  req.url = req.url.replace(/^\/api/, '') || '/';
+  
+  // Handle the request with Express
+  app(req, res);
+};
