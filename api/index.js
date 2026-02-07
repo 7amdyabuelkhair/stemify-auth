@@ -49,10 +49,11 @@ module.exports = async (req, res) => {
   }
 
   const { method } = req;
-  const path = req.url.split('?')[0];
+  // Handle both /api/signup and /signup paths
+  const path = req.url.split('?')[0].replace(/^\/api/, '');
 
   // Sign Up
-  if (method === 'POST' && path === '/api/signup') {
+  if (method === 'POST' && (path === '/signup' || path === '/api/signup')) {
     try {
       const { name, number, parentName, parentNumber, email, password, school } = req.body;
 
@@ -141,7 +142,7 @@ module.exports = async (req, res) => {
   }
 
   // Sign In
-  if (method === 'POST' && path === '/api/signin') {
+  if (method === 'POST' && (path === '/signin' || path === '/api/signin')) {
     try {
       const { email, password } = req.body;
 
@@ -199,7 +200,7 @@ module.exports = async (req, res) => {
   }
 
   // Admin: Get all students
-  if (method === 'GET' && path === '/api/admin/students') {
+  if (method === 'GET' && (path === '/admin/students' || path === '/api/admin/students')) {
     const adminKey = req.query.adminKey || req.headers['x-admin-key'];
     const validAdminKey = process.env.ADMIN_KEY || 'admin-stemify-2024';
 
@@ -241,7 +242,7 @@ module.exports = async (req, res) => {
   }
 
   // Health check
-  if (method === 'GET' && path === '/api') {
+  if (method === 'GET' && (path === '/' || path === '/api')) {
     return res.json({
       message: 'STEMify API is running',
       endpoints: {
