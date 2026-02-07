@@ -12,21 +12,21 @@ app.use(express.urlencoded({ extended: true }));
 
 // هنا تحط كل الـ routes (signup, signin, admin) بدون أي CORS middleware
 
-// Export for Vercel
-module.exports = (req, res) => {
-  // 1️⃣ CORS headers لأي request
+module.exports = async (req, res) => {
+  // ✅ السماح لأي دومين
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
+  res.setHeader('Access-Control-Max-Age', '86400');
 
-  // 2️⃣ التعامل مع preflight request مباشرة
+  // ✅ الرد مباشرة على preflight request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end(); // 204 أفضل من 200 للOPTIONS
   }
 
-  // 3️⃣ إزالة /api prefix
+  // ✅ إزالة /api prefix
   req.url = req.url.replace(/^\/api/, '') || '/';
 
-  // 4️⃣ نفذ Express app
+  // ✅ نفذ Express app
   app(req, res);
 };
